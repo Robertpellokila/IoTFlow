@@ -1,29 +1,7 @@
 /*
  * IoTFlow.h - Arduino library for IoTFlow platform
  * Connect your ESP32/ESP8266 to IoTFlow dashboard
- * Similar to Blynk library - simple and easy to use
- *
- * Usage:
- *   #include <IoTFlow.h>
- *
- *   IoTFlow iot("DEVICE_ID", "DEVICE_TOKEN");
- *
- *   void setup() {
- *     iot.begin("WIFI_SSID", "WIFI_PASSWORD");
- *   }
- *
- *   void loop() {
- *     iot.loop();
- *
- *     // Send sensor data
- *     iot.sendData("temperature", 28.5);
- *     iot.sendData("humidity", 73);
- *
- *     // Receive commands from dashboard
- *     iot.onCommand("led", [](String value) {
- *       digitalWrite(LED_PIN, value == "true" ? HIGH : LOW);
- *     });
- *   }
+ * Fixed for HTTPS / Vercel compatibility
  */
 
 #ifndef IoTFlow_h
@@ -32,10 +10,11 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 
-#define IOTFLOW_SERVER "http://your-app.com"  // Change to your IoTFlow server URL
-#define IOTFLOW_POLL_INTERVAL 2000           // Poll for commands every 2 seconds
+#define IOTFLOW_SERVER "https://iotflow-navy.vercel.app"  // Default server URL
+#define IOTFLOW_POLL_INTERVAL 1000                        // Polling dipercepat jadi 1 detik agar responsif
 
 typedef void (*CommandCallback)(String value);
 
@@ -79,7 +58,7 @@ public:
     _serverUrl = String(IOTFLOW_SERVER);
     _lastPoll = 0;
     _lastSend = 0;
-    _sendInterval = 5000;  // Default: send data every 5 seconds
+    _sendInterval = 5000;
     _handlerCount = 0;
     _connected = false;
   }
@@ -106,9 +85,12 @@ public:
   bool sendData(String key, float value) {
     if (!ensureWifi()) return false;
 
+    WiFiClientSecure client;
+    client.setInsecure(); // Melewati verifikasi SSL Certificate Vercel
+
     HTTPClient http;
     String url = _serverUrl + "/api/iot/data";
-    http.begin(url);
+    http.begin(client, url);
     http.addHeader("Content-Type", "application/json");
     http.setTimeout(5000);
 
@@ -135,9 +117,12 @@ public:
   bool sendDataJson(String json) {
     if (!ensureWifi()) return false;
 
+    WiFiClientSecure client;
+    client.setInsecure();
+
     HTTPClient http;
     String url = _serverUrl + "/api/iot/data";
-    http.begin(url);
+    http.begin(client, url);
     http.addHeader("Content-Type", "application/json");
     http.setTimeout(5000);
 
@@ -145,7 +130,6 @@ public:
     doc["device_id"] = _deviceId;
     doc["token"] = _deviceToken;
 
-    // Parse the incoming JSON and add to data
     StaticJsonDocument<256> sensorData;
     deserializeJson(sensorData, json);
     doc["data"] = sensorData;
@@ -158,7 +142,7 @@ public:
     return code > 0;
   }
 
-  // Register a command handler - called when dashboard sends a command
+  // Register a command handler
   void onCommand(String command, CommandCallback callback) {
     if (_handlerCount < 20) {
       _handlers[_handlerCount].command = command;
@@ -167,15 +151,18 @@ public:
     }
   }
 
-  // Poll for commands - call this in loop()
+  // Poll for commands
   void pollCommands() {
     if (!ensureWifi()) return;
     if (millis() - _lastPoll < IOTFLOW_POLL_INTERVAL) return;
     _lastPoll = millis();
 
+    WiFiClientSecure client;
+    client.setInsecure();
+
     HTTPClient http;
     String url = _serverUrl + "/api/iot/commands/" + _deviceId + "?token=" + _deviceToken;
-    http.begin(url);
+    http.begin(client, url);
     http.setTimeout(5000);
 
     int code = http.GET();
@@ -224,9 +211,12 @@ public:
   void markExecuted(String commandId) {
     if (!ensureWifi()) return;
 
+    WiFiClientSecure client;
+    client.setInsecure();
+
     HTTPClient http;
     String url = _serverUrl + "/api/iot/command-status";
-    http.begin(url);
+    http.begin(client, url);
     http.addHeader("Content-Type", "application/json");
     http.setTimeout(3000);
 
@@ -242,7 +232,7 @@ public:
     http.end();
   }
 
-  // Main loop - call this in your Arduino loop()
+  // Main loop
   void loop() {
     if (!ensureWifi()) {
       delay(1000);
