@@ -1,9 +1,3 @@
-/*
- * IoTFlow.h - Arduino library for IoTFlow platform
- * Connect your ESP32/ESP8266 to IoTFlow dashboard
- * Fixed for HTTPS / Vercel compatibility
- */
-
 #ifndef IoTFlow_h
 #define IoTFlow_h
 
@@ -13,8 +7,8 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 
-#define IOTFLOW_SERVER "https://iotflow-navy.vercel.app"  // Default server URL
-#define IOTFLOW_POLL_INTERVAL 1000                        // Polling dipercepat jadi 1 detik agar responsif
+#define IOTFLOW_SERVER "https://iotflow-navy.vercel.app"
+#define IOTFLOW_POLL_INTERVAL 1000 // Poll commands setiap 1 detik
 
 typedef void (*CommandCallback)(String value);
 
@@ -86,7 +80,7 @@ public:
     if (!ensureWifi()) return false;
 
     WiFiClientSecure client;
-    client.setInsecure(); // Melewati verifikasi SSL Certificate Vercel
+    client.setInsecure(); // Melewati verifikasi sertifikat SSL Vercel
 
     HTTPClient http;
     String url = _serverUrl + "/api/iot/data";
@@ -106,40 +100,14 @@ public:
     int code = http.POST(body);
     http.end();
 
-    if (code > 0) {
+    if (code == 200 || code == 201) {
       _lastSend = millis();
       return true;
+    } else {
+      Serial.print("[HTTP POST ERROR CODE]: ");
+      Serial.println(code);
+      return false;
     }
-    return false;
-  }
-
-  // Send multiple sensor values at once
-  bool sendDataJson(String json) {
-    if (!ensureWifi()) return false;
-
-    WiFiClientSecure client;
-    client.setInsecure();
-
-    HTTPClient http;
-    String url = _serverUrl + "/api/iot/data";
-    http.begin(client, url);
-    http.addHeader("Content-Type", "application/json");
-    http.setTimeout(5000);
-
-    StaticJsonDocument<512> doc;
-    doc["device_id"] = _deviceId;
-    doc["token"] = _deviceToken;
-
-    StaticJsonDocument<256> sensorData;
-    deserializeJson(sensorData, json);
-    doc["data"] = sensorData;
-
-    String body;
-    serializeJson(doc, body);
-
-    int code = http.POST(body);
-    http.end();
-    return code > 0;
   }
 
   // Register a command handler
