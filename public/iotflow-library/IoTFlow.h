@@ -98,6 +98,8 @@ public:
     serializeJson(doc, body);
 
     int code = http.POST(body);
+    Serial.print("HTTP Response Code Asli: ");
+Serial.println(code);
     http.end();
 
     if (code == 200 || code == 201) {
